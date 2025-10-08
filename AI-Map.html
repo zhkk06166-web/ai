@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>金华学术·伦理·法治 互动地图</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script type="text/javascript" src="https://api.map.baidu.com/api?v=1.0&type=webgl&ak=R5ARQAHVCz4wIU4CNBeFj1K6sbBpzMT5"></script>
+    <style>
+        html, body {height:100%;margin:0;padding:0;overflow:hidden;font-family:"Microsoft YaHei",sans-serif;}
+        #map-container {height:100vh;width:100%;z-index:1;position:relative;}
+        
+        .floating-panel{
+            position:absolute;
+            top:20px;
+            left:20px;
+            z-index:1000;
+            background:rgba(255,255,255,0.95);
+            border-radius:12px;
+            padding:20px;
+            width:280px;
+            box-shadow:0 4px 20px rgba(0,0,0,0.15);
+            border:1px solid #e0e0e0;
+        }
+        
+        .story-panel{
+            position:absolute;
+            top:50%;
+            left:50%;
+            transform:translate(-50%,-50%);
+            z-index:1000;
+            background:white;
+            border-radius:12px;
+            padding:0;
+            width:90%;
+            max-width:400px;
+            display:none;
+            box-shadow:0 8px 30px rgba(0,0,0,0.25);
+            border:1px solid #e0e0e0;
+        }
+        
+        .story-panel.active{
+            display:block;
+            animation:fadeIn 0.3s ease;
+        }
+        
+        .story-header{
+            background:linear-gradient(135deg, #4f6df5, #3a56e8);
+            color:white;
+            padding:20px;
+            border-radius:12px 12px 0 0;
+            position:relative;
+        }
+        
+        .story-counter{
+            position:absolute;
+            top:15px;
+            right:15px;
+            background:rgba(255,255,255,0.2);
+            padding:3px 10px;
+            border-radius:20px;
+            font-size:12px;
+        }
+        
+        .story-content{
+            padding:20px;
+        }
+        
+        .story-footer{
+            padding:15px 20px;
+            border-top:1px solid #f0f0f0;
+            display:flex;
+            justify-content:space-between;
+        }
+        
+        .btn{
+            padding:8px 16px;
+            border-radius:6px;
+            border:none;
+            cursor:pointer;
+            font-size:14px;
+            transition:all 0.3s;
+        }
+        
+        .btn-prev{
+            background:#f5f5f5;
+            color:#666;
+        }
+        
+        .btn-prev:hover{
+            background:#e8e8e8;
+        }
+        
+        .btn-next{
+            background:#4f6df5;
+            color:white;
+        }
+        
+        .btn-next:hover{
+            background:#3a56e8;
+        }
+        
+        .progress-bar{
+            height:4px;
+            background:#e0e0e0;
+            border-radius:2px;
+            margin:10px 0;
+            overflow:hidden;
+        }
+        
+        .progress{
+            height:100%;
+            background:#4f6df5;
+            border-radius:2px;
+            transition:width 0.3s;
+        }
+        
+        @keyframes fadeIn {
+            from {opacity:0; transform:translate(-50%,-45%);}
+            to {opacity:1; transform:translate(-50%,-50%);}
+        }
+        
+        .bubble{
+            background:white;
+            padding:8px 12px;
+            border-radius:20px;
+            box-shadow:0 2px 10px rgba(0,0,0,0.1);
+            border:1px solid #e0e0e0;
+            font-size:12px;
+            max-width:150px;
+            text-align:center;
+        }
+        /* 新增图片相关样式 */
+    #story-image-container {
+        transition: all 0.3s ease;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    #story-image {
+        transition: opacity 0.3s;
+    }
+    
+    #story-image.loading {
+        opacity: 0.3;
+    }
+    
+    /* 图片加载动画 */
+    @keyframes pulse {
+        0% { opacity: 0.6; }
+        50% { opacity: 0.3; }
+        100% { opacity: 0.6; }
+    }
+    
+    .loading-placeholder {
+        animation: pulse 1.5s infinite;
+        background: #f0f0f0;
+        height: 192px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #999;
+    }
+    </style>
+</head>
+<body>
+<div id="map-container"></div>
+
+<div class="floating-panel">
+    <h1 class="text-xl font-bold mb-3 text-gray-800">金华文化地图</h1>
+    <div class="category-filter mb-4">
+        <h2 class="font-semibold mb-2 text-gray-700">筛选维度</h2>
+        <div class="space-y-2">
+            <label class="flex items-center">
+                <input type="checkbox" class="category-checkbox mr-2" value="morality" checked>
+                <span class="text-sm">道德文化传承</span>
+            </label>
+            <label class="flex items-center">
+                <input type="checkbox" class="category-checkbox mr-2" value="rule" checked>
+                <span class="text-sm">法治建设实践</span>
+            </label>
+            <label class="flex items-center">
+                <input type="checkbox" class="category-checkbox mr-2" value="values" checked>
+                <span class="text-sm">核心价值观践行</span>
+            </label>
+            <label class="flex items-center">
+                <input type="checkbox" class="category-checkbox mr-2" value="culture" checked>
+                <span class="text-sm">特色文化传承</span>
+            </label>
+        </div>
+    </div>
+    <button id="story-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-all flex items-center justify-center mt-4">
+        <i class="fa fa-map-signs mr-2"></i> 开启故事线
+    </button>
+</div>
+
+<div class="story-panel" id="story-panel">
+    <div class="story-header">
+        <div class="story-counter" id="story-counter">1/8</div>
+        <h2 class="text-xl font-bold" id="story-title">金华博物馆</h2>
+        <div class="progress-bar mt-3">
+            <div class="progress" id="story-progress" style="width:12.5%"></div>
+        </div>
+    </div>
+    <div class="story-content">
+        <div class="text-gray-700 leading-relaxed" id="story-description">
+            金华博物馆是金华最大的综合性博物馆，收藏了大量珍贵文物，展示了金华地区从古至今的灿烂文化。
+        </div>
+        <!-- 新增图片展示区域 -->
+        <div class="mt-3 rounded-lg overflow-hidden" id="story-image-container">
+            <img src="" alt="地点图片" class="w-full h-48 object-cover" id="story-image">
+        </div>
+        <div class="mt-3 text-sm text-gray-500">
+            <i class="fa fa-map-marker mr-1"></i>
+            <span id="story-address">浙江省金华市婺城区古子城历史文化街区东市北街128号</span>
+        </div>
+    </div>
+    <div class="story-footer">
+        <button id="prev-story" class="btn btn-prev">
+            <i class="fa fa-arrow-left mr-1"></i>上一站
+        </button>
+        <button id="next-story" class="btn btn-next">
+            下一站<i class="fa fa-arrow-right ml-1"></i>
+        </button>
+    </div>
+</div>
+
+<script>
+// 金华重要文化地点数据
+const culturalSites = [
+    {
+        id: 1,
+        name: "金华博物馆",
+        category: "culture",
+        location: {lat: 29.11, lng: 119.67},
+        address: "浙江省金华市婺城区古子城历史文化街区东市北街128号",
+        description: "金华市博物馆（Jinhua Museum），位于浙江省金华市婺城区古子城历史文化街区东市北街128号，是一座集教育、研究、收藏、保护和展示功能于一体的地级市综合性博物馆。金华市博物馆启用于2015年9月28日，总建筑面积13600平方米。据2022年博物馆官网显示，金华市博物馆有展厅面积5883平方米，馆藏文物与古籍共7535件/套，有珍贵文物466件/套，年度观众总数为164282人。陈列展览以艾青“为什么我的眼里常含着泪水，因为我对这土地爱得深沉”为主线，设有“八婺古韵”“神奇大地”“乡土民风”“百工之乡”“陈松平国画”5个常设展览 。2016年6月，金华市博物馆获评第三批“浙江省古籍重点保护单位“；2020年12月21日，金华市博物馆入选第四批“国家二级博物馆”。​",
+        imageUrl: "https://youimg1.c-ctrip.com/target/100913000000u6if80603.jpg",
+        storyOrder: 1
+    },
+    {
+        id: 2,
+        name: "横店影视城",
+        category: "culture",
+        location: {lat: 29.16, lng: 120.31},
+        address: "金华市东阳市浙江省金华市东阳市横店镇",
+        description: "横店影视城是中国规模最大的影视拍摄基地，被誉为“中国好莱坞”，拥有丰富的拍摄场景和旅游资源。",
+        imageUrl: "https://tse1-mm.cn.bing.net/th/id/OIP-C.cGAuC0CUEUfidoJ6rTOc_wHaE7?w=261&h=180&c=7&r=0&o=7&cb=12&dpr=1.3&pid=1.7&rm=3",
+        storyOrder: 2
+    },
+    {
+        id: 3,
+        name: "诸葛八卦村",
+        category: "values",
+        location: {lat: 29.25, lng: 119.30},
+        address: "金华市兰溪市浙江省兰溪市诸葛镇330国道",
+        description: "诸葛八卦村是中国最大的诸葛亮后裔聚居地，因其独特的“九宫八卦”布局而闻名，是一个具有丰富历史和文化的古村落。",
+        imageUrl: "https://pic1.zhimg.com/5aa9b99f657314479f5b3931df115443_1200x500.jpg",
+        storyOrder: 3
+    },
+    {
+        id: 4,
+        name: "双龙风景区",
+        category: "culture",
+        location: {lat: 29.19, lng: 119.63},
+        address: "金华市婺城区浙江省金华市婺城区尖峰路与罗电线",
+        description: "双龙风景区位于浙江省金华市，是国家AAAAA级旅游景区，以其独特的喀斯特地貌、丰富的道教文化和美丽的自然景观而闻名。",
+        imageUrl: "https://img1.qunarzz.com/travel/d7/1611/b9/19e5f5ea1191ffb5.jpg_r_720x480x95_08c6698d.jpg",
+        storyOrder: 4
+    },
+    {
+        id: 5,
+        name: "仙华山",
+        category: "culture",
+        location: {lat: 29.53, lng: 119.90},
+        address: "金华市浦江县金华市浦江县仙华山村",
+        description: "仙华山，位于浙江省浦江县，该山是以山水文化和儒家文化及宗教文化为内涵，以山顶峰林、江南第一家为特色，融人文景观与自然景观为一体，以观光揽胜、休闲度假为主要功能的风景旅游区。 仙华山是国家AAAA级旅游景区。 分为峰林仙华山、江南第一家、富春野马岭、幽谷古禅寺四大景区，总面积约66平方公里。 共有20个景群、270个景点，经组合后为88处景源。",
+        imageUrl: "https://pic5.40017.cn/01/000/93/b9/rBLkBVtxBgqAMNXLAALGdrEyZEI508.jpg",
+        storyOrder: 5
+    },
+    {
+        id: 6,
+        name: "方岩风景名胜区",
+        category: "values",
+        location: {lat: 28.93, lng: 120.20},
+        address: "金华市永康市浙江省金华市永康市方岩镇双舟线",
+        description: "方岩风景名胜区位于永康东20公里左右，包含方岩（南岩）、石鼓寮、五峰、灵岩四个核心景区。除了不错的丹霞地貌景观，方岩也是许多当地百姓心中祈福许愿的灵地。特别的是，这里拜祭的不是菩萨，而是造福一方的宋朝清官胡则，方岩山顶的胡公祠常年香火不断。游玩整个景区大概需要1-2天，各子景区分开售票，也有免费交通车往返，游人可根据自己的喜好安排行程。方岩、南岩和五峰之间距离不远，步行可至。几个子景区中，方岩无疑是游玩的重点，它和隔壁的南岩包含在同一张门票内，通常一并游玩。游完方岩可步行前往旁边南宋永康学派的发祥地五峰书院，石鼓寮是一处影视基地，可从南岩走过去，不想时间太赶也可安排在第二天。方岩入口处一块大石碑上，是宋高宗为胡公所提的鎏金大字“赫灵”，由此步行至山顶的胡公祠约30分钟。",
+        imageUrl: "https://p1.ssl.qhimg.com/t0105d538ef1ca014ca.jpg",
+        storyOrder: 6
+    },
+    {
+        id: 7,
+        name: "东白山",
+        category: "values",
+        location: {lat: 29.49, lng: 120.46},
+        address: "金华市东阳市浙江省金华市东阳市虎鹿镇境内",
+        description: "东白山，为浙东名山之一，被称为浙东群山之雄。山中景色优美，有草甸，有风车，山顶气候微凉，是不可多得的避暑胜地，享受大自然的馈赠，登上高山之巅，看日出日落，赏繁星银河，眼前的美景，真的很治愈。",
+        imageUrl: "https://img.pconline.com.cn/images/upload/upc/tx/photoblog/2009/05/c1/229083060_1599306250279.jpg",
+        storyOrder: 7
+    },
+    {
+        id: 8,
+        name: "金华祠堂",
+        category: "morality",
+        location: {lat: 29.25, lng: 120.01},
+        address: "金华市义乌市金华市义乌市五洲大道金村幼儿园西南侧约140米",
+        description: "八婺大地，祠堂林立。或庄重典雅或沧桑古朴，雕梁画栋，大气浑厚，远眺近观，各有其妙。这些宗祠，记录着各自的家族历史，展示着不同的建筑特色，其中有家族代表人物事迹遗迹，有家规家训，还有为数众多的楹联。",
+        imageUrl: "https://tse1-mm.cn.bing.net/th/id/OIP-C.AMk0z3Fu2Bad1eD3vEjGgQHaEg?w=304&h=184&c=7&r=0&o=7&cb=12&dpr=1.3&pid=1.7&rm=3",
+        storyOrder: 8
+    },
+    {
+        id: 9,
+        name: "婺州古城",
+        category: "morality",
+        location: {lat: 29.10, lng: 119.67},
+        address: "金华市婺城区浙江省金华市婺城区城中街道鼓楼里",
+        description: " 新晋的红色旅游教育基地,是金华市本级唯一一处中共金华地区第一个党支部 (1925年)及共青团支部 (1925年)诞生地，是抗战危难时期东南各省的书刊集散中心，是众多革命者先后在此办公和指导工作地。 ——酒坊巷地位于婺州古城景区内，景区主要范围西至胜利街、东至东市街、南至飘萍路、北至石榴巷，是以名人故居、红军巷红色文化、红色文化陈列馆为一体的集中展示区。",
+        imageUrl: "https://www.wuzhougucheng.com/upload/201908/22/201908221742566364.jpg",
+        storyOrder: 9
+    },
+    {
+        id: 10,
+        name: "严济慈故居​",
+        category: "values",
+        location: {lat: 29.09, lng: 119.65},
+        address: "金华市婺城区金华市婺城区永康街288号金华市图书馆2层",
+        description: "严济慈故居位于东阳市横店镇，年代为民国。作为中国现代物理学奠基人，世人印象中的严济慈理性、睿智。鲜为人知的是，生活中的他至情至性。在他的故乡横店镇下湖严小区，还保留着两幢故居，一幢是祖居也即出生之地，一幢是他和妻子张宗英为母亲建造的康养居所。后者在下湖严被称为当时全村最美的房子。1901年1月23日，严济慈出生在下湖严一幢三合院内。这幢小小的九间头三合院由严济慈的曾祖父所建，西南朝向，占地206平方米。曾祖父于清朝同治年间在横店后岑山开了一家中药铺“惠元堂”，因医德医术受人称道，前来买药就诊的人不少，家境日渐殷实，遂在家乡造了此院。​​",
+        imageUrl: "https://ts1.tc.mm.bing.net/th/id/R-C.801973fd2628f6b2681bc77aeb0ca646?rik=hL37xV3m3hxowQ&riu=http%3a%2f%2fpic.rmb.bdstatic.com%2fbjh%2fnews%2f801973fd2628f6b2681bc77aeb0ca646.png&ehk=3D3c7Z1v93ukkw2tWU0HeT9PrpO%2f%2fihH2zmJMRkSRyg%3d&risl=&pid=ImgRaw&r=0",
+        storyOrder: 10
+    },
+    {
+        id: 11,
+        name: "金华市中级人民法院",
+        category: "values",
+        location: {lat: 29.09, lng: 119.65},
+        address: "金华市婺城区浙江省金华市李渔路1096号",
+        description: "​​金华市中级人民法院成立于1950年5月，法院审判办公楼现坐落于婺城区李渔路1096号，全院现有人员312人，正式在编人员221人，其中本科173人，硕士37人。",
+        imageUrl: "https://pic.baike.soso.com/ugc/baikepic2/4544/20150104142049-645029373.jpg/300",
+        storyOrder: 11
+    },
+    {
+        id: 12,
+        name: "金华高新技术产业园区心",
+        category: "morality",
+        location: {lat: 29.23, lng: 119.86},
+        address: "金华市金东区金华市金东区华丰路香水湾·国际花园东侧约80米",
+        description: "‌金华高新技术产业园区是浙江省金华市的一个重要的高新技术产业集聚区，成立于1998年，2001年通过浙江省科技厅考核验收，被浙江省人民政府确认为省级高新技术产业园区‌‌。金华市高新技术产业园区总面积7.02平方公里。高新园区与金义都市新区实行“两块牌子、一套班子”的运行机制",
+        imageUrl: "https://ts4.tc.mm.bing.net/th/id/OIP-C.zUn8JnycPhs4Kgz-rnJnBAHaEK?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3",
+        storyOrder: 12
+    },
+    {
+        id: 13,
+        name: "上山遗址",
+        category: "morality",
+        location: {lat: 29.46, lng:119.98},
+        address: "金华市浦江县金华市浦江县旧山背38号",
+        description: "上山遗址位于浙江省金华市浦江县，发现于2000年，是第六批全国重点文物保护单位，入选中国“百年百大考古发现”，入列国家大遗址保护利用“十四五”专项规划、“考古中国”项目。经过20余年的考古调查，在浙江省金华、衢州、绍兴、台州等4市12县（市、区）发现上山文化遗址24处，以金衢盆地为中心分布，是中国乃至东亚地区年代最早、规模最大、内涵最丰富的早期新石器时代聚落群。",
+        imageUrl: "https://imagepphcloud.thepaper.cn/pph/image/350/366/697.jpg",
+        storyOrder: 13
+    }
+];
+
+let map;
+let markers = [];
+let currentStoryIndex = 0;
+
+// 初始化地图
+function initMap() {
+    map = new BMapGL.Map("map-container");
+    // 设置金华为中心点
+    const point = new BMapGL.Point(119.67, 29.11);
+    map.centerAndZoom(point, 12);
+    map.enableScrollWheelZoom(true);
+    
+    // 添加地图控件
+    map.addControl(new BMapGL.ZoomControl());
+    map.addControl(new BMapGL.ScaleControl());
+    
+    // 添加标注
+    addMarkers();
+}
+
+// 添加地图标注
+function addMarkers() {
+    culturalSites.forEach(site => {
+        const point = new BMapGL.Point(site.location.lng, site.location.lat);
+        
+        const marker = new BMapGL.Marker(point, {
+            enableHighAccuracy: true // 启用高精度模式
+        });
+        
+        map.addOverlay(marker);
+        
+        // 创建信息窗口
+        const infoWindow = new BMapGL.InfoWindow(`
+            <div style="padding:10px;max-width:250px">
+                <h3 style="margin:0 0 8px 0;font-weight:bold;">${site.name}</h3>
+                <p style="margin:0 0 5px 0;font-size:13px;">${site.description}</p>
+                <p style="margin:0;font-size:12px;color:#666;">${site.address}</p>
+            </div>
+        `, {width: 280});
+        
+        marker.addEventListener('click', () => {
+            map.openInfoWindow(infoWindow, point);
+        });
+        
+        markers.push(marker);
+    });
+}
+
+// 故事线功能
+const storySites = culturalSites.filter(site => site.storyOrder).sort((a, b) => a.storyOrder - b.storyOrder);
+
+document.getElementById('story-btn').addEventListener('click', function() {
+    document.getElementById('story-panel').classList.add('active');
+    showStoryPoint(0);
+});
+
+document.querySelector('.close-story')?.addEventListener('click', function() {
+    document.getElementById('story-panel').classList.remove('active');
+});
+
+document.getElementById('prev-story').addEventListener('click', function() {
+    if (currentStoryIndex > 0) {
+        showStoryPoint(currentStoryIndex - 1);
+    }
+});
+
+document.getElementById('next-story').addEventListener('click', function() {
+    if (currentStoryIndex < storySites.length - 1) {
+        showStoryPoint(currentStoryIndex + 1);
+    } else {
+        // 故事线结束
+        document.getElementById('story-panel').classList.remove('active');
+        alert('故事线已结束！感谢您了解金华的文化地标。');
+    }
+});
+
+function showStoryPoint(index) {
+    currentStoryIndex = index;
+    const site = storySites[index];
+    
+    // 更新内容
+    document.getElementById('story-title').textContent = site.name;
+    document.getElementById('story-description').textContent = site.description;
+    document.getElementById('story-address').textContent = site.address;
+    
+    // 新增图片加载逻辑
+    const imgElement = document.getElementById('story-image');
+    if (site.imageUrl) {
+        imgElement.src = site.imageUrl;
+        imgElement.alt = site.name + "图片";
+        document.getElementById('story-image-container').classList.remove('hidden');
+    } else {
+        document.getElementById('story-image-container').classList.add('hidden');
+    }
+    
+    // 更新故事面板内容
+    document.getElementById('story-title').textContent = site.name;
+    document.getElementById('story-description').textContent = site.description;
+    document.getElementById('story-address').textContent = site.address;
+    document.getElementById('story-counter').textContent = `${index + 1}/${storySites.length}`;
+    document.getElementById('story-progress').style.width = `${((index + 1) / storySites.length) * 100}%`;
+    
+    // 更新按钮状态
+    document.getElementById('prev-story').disabled = index === 0;
+    document.getElementById('next-story').textContent = index === storySites.length - 1 ? '完成' : '下一站';
+    
+    // 移动地图到该地点
+    const point = new BMapGL.Point(site.location.lng, site.location.lat);
+    map.panTo(point);
+    map.setZoom(15);
+}
+
+// 筛选功能
+document.querySelectorAll('.category-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+        const category = this.value;
+        const isChecked = this.checked;
+        
+        // 在实际应用中，这里应该根据类别显示/隐藏对应的标记
+        console.log(`类别 ${category} ${isChecked ? '显示' : '隐藏'}`);
+    });
+});
+
+// 页面加载完成后初始化地图
+window.onload = initMap;
+</script>
+</body>
+</html>
